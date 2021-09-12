@@ -1,22 +1,24 @@
-pub struct ZipSortIterator<T, I>
+pub struct ZipSortIterator<'a, T, I>
 where
-    I: Iterator<Item = T>,
+    I: Iterator<Item = &'a T>,
+    T:'a
 {
     a: I,
     b: I,
 
-    a_next: Option<T>,
-    b_next: Option<T>,
+    a_next: Option<&'a T>,
+    b_next: Option<&'a T>,
     initialized: bool,
 }
 
-impl<T, I> ZipSortIterator<T, I>
+impl<'a, T, I> ZipSortIterator<'a, T, I>
 where
-    I: Iterator<Item = T>,
+    I: Iterator<Item = &'a T>,
+    T: 'a
 {
     pub fn new<In>(a: In, b: In) -> Self
     where
-        In: IntoIterator<Item = T, IntoIter = I>,
+        In: IntoIterator<Item = &'a T, IntoIter = I>,
     {
         ZipSortIterator {
             a: a.into_iter(),
@@ -28,13 +30,13 @@ where
     }
 }
 
-impl<T, I> Iterator for ZipSortIterator<T, I>
+impl<'a, T, I> Iterator for ZipSortIterator<'a, T, I>
 where
-    I: Iterator<Item = T>,
+    I: Iterator<Item =  &'a T>,
     T: PartialOrd,
-    T: Copy,
+    T:'a
 {
-    type Item = T;
+    type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
         if !self.initialized {
@@ -50,22 +52,18 @@ where
                 (Some(a), Some(b)) => {
                     if a <= b {
                         assign_a = true;
-                        // self.a_next = self.a.next();
                         Some(a)
                     } else {
                         assign_b = true;
-                        // self.b_next = self.b.next();
                         Some(b)
                     }
                 }
                 (Some(a), None) => {
                     assign_a = true;
-                    // self.a_next = self.a.next();
                     Some(a)
                 }
                 (None, Some(b)) => {
                     assign_b = true;
-                    // self.b_next = self.b.next();
                     Some(b)
                 }
                 (None, None) => None,
@@ -90,12 +88,12 @@ mod tests {
         let a = vec![1, 3, 5];
         let b = vec![2, 4];
 
-        let mut zip = ZipSortIterator::new(a, b);
-        assert_eq!(zip.next(), Some(1));
-        assert_eq!(zip.next(), Some(2));
-        assert_eq!(zip.next(), Some(3));
-        assert_eq!(zip.next(), Some(4));
-        assert_eq!(zip.next(), Some(5));
+        let mut zip = ZipSortIterator::new(&a, &b);
+        assert_eq!(zip.next(), Some(&1));
+        assert_eq!(zip.next(), Some(&2));
+        assert_eq!(zip.next(), Some(&3));
+        assert_eq!(zip.next(), Some(&4));
+        assert_eq!(zip.next(), Some(&5));
         assert_eq!(zip.next(), None);
     }
 
@@ -104,16 +102,16 @@ mod tests {
         let a = vec![1, 3, 4, 5];
         let b = vec![2, 4, 4, 4, 4];
 
-        let mut zip = ZipSortIterator::new(a, b);
-        assert_eq!(zip.next(), Some(1));
-        assert_eq!(zip.next(), Some(2));
-        assert_eq!(zip.next(), Some(3));
-        assert_eq!(zip.next(), Some(4));
-        assert_eq!(zip.next(), Some(4));
-        assert_eq!(zip.next(), Some(4));
-        assert_eq!(zip.next(), Some(4));
-        assert_eq!(zip.next(), Some(4));
-        assert_eq!(zip.next(), Some(5));
+        let mut zip = ZipSortIterator::new(&a, &b);
+        assert_eq!(zip.next(), Some(&1));
+        assert_eq!(zip.next(), Some(&2));
+        assert_eq!(zip.next(), Some(&3));
+        assert_eq!(zip.next(), Some(&4));
+        assert_eq!(zip.next(), Some(&4));
+        assert_eq!(zip.next(), Some(&4));
+        assert_eq!(zip.next(), Some(&4));
+        assert_eq!(zip.next(), Some(&4));
+        assert_eq!(zip.next(), Some(&5));
         assert_eq!(zip.next(), None);
     }
 
@@ -128,13 +126,33 @@ mod tests {
             TimeStamp { time: 2, data: "l" },
         ];
 
-        let mut zip = ZipSortIterator::new(a, b);
+        let mut zip = ZipSortIterator::new(&a, &b);
         assert_eq!(zip.next().map(|x| x.data), Some("h"));
         assert_eq!(zip.next().map(|x| x.data), Some("e"));
         assert_eq!(zip.next().map(|x| x.data), Some("l"));
         assert_eq!(zip.next().map(|x| x.data), Some("l"));
         assert_eq!(zip.next(), None);
     }
+
+    #[test]
+    fn it_works_times_no_copy() {
+        let a = vec![
+            TimeStampNoCopy { time: 0, data: "h" },
+            TimeStampNoCopy { time: 2, data: "l" },
+        ];
+        let b = vec![
+            TimeStampNoCopy { time: 1, data: "e" },
+            TimeStampNoCopy { time: 2, data: "l" },
+        ];
+
+        let mut zip = ZipSortIterator::new(&a, &b);
+        assert_eq!(zip.next().map(|x| x.data), Some("h"));
+        assert_eq!(zip.next().map(|x| x.data), Some("e"));
+        assert_eq!(zip.next().map(|x| x.data), Some("l"));
+        assert_eq!(zip.next().map(|x| x.data), Some("l"));
+        assert_eq!(zip.next(), None);
+    }
+
 
     #[derive(Debug, Copy, Clone)]
     pub struct TimeStamp<T> {
@@ -149,6 +167,25 @@ mod tests {
     }
 
     impl<T> PartialOrd for TimeStamp<T> {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            Some(self.time.cmp(&other.time))
+        }
+    }
+
+
+    #[derive(Debug, Clone)]
+    pub struct TimeStampNoCopy<T> {
+        pub time: u64,
+        pub data: T,
+    }
+
+    impl<T> PartialEq for TimeStampNoCopy<T> {
+        fn eq(&self, other: &Self) -> bool {
+            self.time == other.time
+        }
+    }
+
+    impl<T> PartialOrd for TimeStampNoCopy<T> {
         fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
             Some(self.time.cmp(&other.time))
         }
