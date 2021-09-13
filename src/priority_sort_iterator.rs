@@ -32,7 +32,7 @@ where
     T: Ord,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.prio.partial_cmp(&other.prio)
+        self.prio.partial_cmp(&other.prio).map(|x| x.reverse())
     }
 }
 
@@ -42,7 +42,7 @@ where
     T: Ord,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.prio.cmp(&other.prio)
+        self.prio.cmp(&other.prio).reverse()
     }
 }
 
@@ -83,7 +83,16 @@ where
 {
     type Item = &'a T;
     fn next(&mut self) -> Option<Self::Item> {
-        None
+        let cur = self.queue.pop();
+        let mut res = None;
+        if let Some(State { mut iter, prio }) = cur {
+            res = Some(prio);
+            let next = iter.next();
+            if let Some(next) = next {
+                self.queue.push(State { iter, prio: next });
+            }
+        }
+        res
     }
 }
 
@@ -101,16 +110,64 @@ mod tests {
             TimeStampNoCopy { time: 1, data: "e" },
             TimeStampNoCopy { time: 2, data: "l" },
         ];
+        let c = vec![TimeStampNoCopy { time: 8, data: "o" }];
 
-        // let a = vec![1, 3, 5];
-        // let b = vec![2, 4];
+        let d = vec![
+            TimeStampNoCopy { time: 9, data: " " },
+            TimeStampNoCopy {
+                time: 10,
+                data: "world",
+            },
+        ];
 
-        let mut zip = PrioritySortIterator::new(vec![&a, &b].as_mut_slice());
+        let mut zip = PrioritySortIterator::new(vec![&a, &b, &c, &d].as_mut_slice());
         assert_eq!(zip.next().map(|x| x.data), Some("h"));
         assert_eq!(zip.next().map(|x| x.data), Some("e"));
         assert_eq!(zip.next().map(|x| x.data), Some("l"));
         assert_eq!(zip.next().map(|x| x.data), Some("l"));
+        assert_eq!(zip.next().map(|x| x.data), Some("o"));
+        assert_eq!(zip.next().map(|x| x.data), Some(" "));
+        assert_eq!(zip.next().map(|x| x.data), Some("world"));
         assert_eq!(zip.next(), None);
+    }
+
+    #[test]
+    fn test_priority_sort_integers_iterator() {
+        let a = vec![1, 3, 5];
+        let b = vec![2, 4];
+
+        let mut zip = PrioritySortIterator::new(vec![&a, &b].as_mut_slice());
+        assert_eq!(zip.next(), Some(&1));
+        assert_eq!(zip.next(), Some(&2));
+        assert_eq!(zip.next(), Some(&3));
+        assert_eq!(zip.next(), Some(&4));
+        assert_eq!(zip.next(), Some(&5));
+        assert_eq!(zip.next(), None);
+    }
+
+    #[test]
+    fn benchmark() {
+        let mut a = vec![];
+        let mut b = vec![];
+        let mut c = vec![];
+
+        for i in 6..100000 {
+            a.push(i);
+        }
+        for i in 5000..100000 {
+            b.push(i);
+        }
+        for i in 0..1000000 {
+            c.push(i);
+        }
+        let mut zip = PrioritySortIterator::new(vec![&a, &b, &c].as_mut_slice());
+
+        let before = std::time::Instant::now();
+        while zip.next().is_some() {
+            zip.next();
+        }
+        let dur = before.elapsed();
+        println!("{:?}", dur);
     }
 
     impl<T> Ord for TimeStampNoCopy<T> {
