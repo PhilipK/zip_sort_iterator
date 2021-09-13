@@ -83,16 +83,26 @@ where
 {
     type Item = &'a T;
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.queue.pop();
-        let mut res = None;
-        if let Some(State { mut iter, prio }) = cur {
-            res = Some(prio);
-            let next = iter.next();
-            if let Some(next) = next {
-                self.queue.push(State { iter, prio: next });
-            }
+        let mut needs_pop = false;
+        if self.queue.is_empty() {
+            return None;
         }
-        res
+        let res = {
+            let mut cur = self.queue.peek_mut().unwrap();
+            let next = cur.iter.next();
+            let res = cur.prio;
+            if next.is_some() {
+                cur.prio = next.unwrap();
+            } else {
+                needs_pop = true;
+            }
+            res
+        };
+
+        if needs_pop {
+            self.queue.pop();
+        }
+        Some(res)
     }
 }
 
@@ -151,10 +161,10 @@ mod tests {
         let mut b = vec![];
         let mut c = vec![];
 
-        for i in 6..100000 {
+        for i in 0..1000000 {
             a.push(i);
         }
-        for i in 5000..100000 {
+        for i in 0..1000000 {
             b.push(i);
         }
         for i in 0..1000000 {
@@ -168,6 +178,9 @@ mod tests {
         }
         let dur = before.elapsed();
         println!("{:?}", dur);
+
+
+        
     }
 
     impl<T> Ord for TimeStampNoCopy<T> {
