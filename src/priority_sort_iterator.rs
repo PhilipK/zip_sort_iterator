@@ -1,4 +1,4 @@
-use std::{collections::BinaryHeap, iter::FromIterator};
+use std::iter::FromIterator;
 
 struct State<T, I>
 where
@@ -32,7 +32,7 @@ where
     T: Ord,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.prio.partial_cmp(&other.prio).map(|x| x.reverse())
+        self.prio.partial_cmp(&other.prio)
     }
 }
 
@@ -42,7 +42,7 @@ where
     T: Ord,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.prio.cmp(&other.prio).reverse()
+        self.prio.cmp(&other.prio)
     }
 }
 
@@ -52,7 +52,7 @@ where
     T: Ord,
     T: 'a,
 {
-    queue: BinaryHeap<State<&'a T, I>>,
+    queue: Vec<State<&'a T, I>>,
 }
 
 impl<'a, T, I> PrioritySortIterator<'a, T, I>
@@ -70,7 +70,7 @@ where
             next.map(|prio| State { iter, prio })
         });
         Self {
-            queue: BinaryHeap::from_iter(iter),
+            queue: Vec::from_iter(iter),
         }
     }
 }
@@ -88,7 +88,7 @@ where
             return None;
         }
         let res = {
-            let mut cur = self.queue.peek_mut().unwrap();
+            let mut cur = self.queue.get_mut(0).unwrap();
             let next = cur.iter.next();
             let res = cur.prio;
             if next.is_some() {
@@ -100,7 +100,14 @@ where
         };
 
         if needs_pop {
-            self.queue.pop();
+            self.queue.remove(0);
+        }
+        let needs_sort = match (self.queue.get(0), self.queue.get(1)) {
+            (Some(f), Some(s)) if f.prio > s.prio => true,
+            _ => false,
+        };
+        if needs_sort{
+           self.queue.sort();
         }
         Some(res)
     }
@@ -164,7 +171,7 @@ mod tests {
         for i in 0..1000000 {
             a.push(i);
         }
-        for i in 0..1000000 {
+        for i in 1000000..2000000 {
             b.push(i);
         }
         for i in 0..1000000 {
@@ -179,14 +186,20 @@ mod tests {
         let dur = before.elapsed();
         println!("{:?}", dur);
 
+        let mut d = vec![];
+        d.extend_from_slice(a.as_slice());
+        d.extend_from_slice(b.as_slice());
+        d.extend_from_slice(c.as_slice());
+
         let before = std::time::Instant::now();
+        d.sort();
+
         let mut x = 0;
-        for i in 0..3000000{
-            x += i %3 * 3 *2;
+        for i in d {
+            x += i % 3 * 3 * 2;
         }
         let dur = before.elapsed();
-        println!("{:?} {}", dur,x);
-        
+        println!("{:?} {}", dur, x);
     }
 
     impl<T> Ord for TimeStampNoCopy<T> {
