@@ -179,7 +179,13 @@ mod tests {
         let dur = before.elapsed();
         println!("{:?}", dur);
 
-
+        let before = std::time::Instant::now();
+        let mut x = 0;
+        for i in 0..3000000{
+            x += i %3 * 3 *2;
+        }
+        let dur = before.elapsed();
+        println!("{:?} {}", dur,x);
         
     }
 
