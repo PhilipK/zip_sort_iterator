@@ -106,8 +106,8 @@ where
             (Some(f), Some(s)) if f.prio > s.prio => true,
             _ => false,
         };
-        if needs_sort{
-           self.queue.sort();
+        if needs_sort {
+            self.queue.sort();
         }
         Some(res)
     }
@@ -160,46 +160,6 @@ mod tests {
         assert_eq!(zip.next(), Some(&4));
         assert_eq!(zip.next(), Some(&5));
         assert_eq!(zip.next(), None);
-    }
-
-    #[test]
-    fn benchmark() {
-        let mut a = vec![];
-        let mut b = vec![];
-        let mut c = vec![];
-
-        for i in 0..1000000 {
-            a.push(i);
-        }
-        for i in 1000000..2000000 {
-            b.push(i);
-        }
-        for i in 0..1000000 {
-            c.push(i);
-        }
-        let mut zip = PrioritySortIterator::new(vec![&a, &b, &c].as_mut_slice());
-
-        let before = std::time::Instant::now();
-        while zip.next().is_some() {
-            zip.next();
-        }
-        let dur = before.elapsed();
-        println!("{:?}", dur);
-
-        let mut d = vec![];
-        d.extend_from_slice(a.as_slice());
-        d.extend_from_slice(b.as_slice());
-        d.extend_from_slice(c.as_slice());
-
-        let before = std::time::Instant::now();
-        d.sort();
-
-        let mut x = 0;
-        for i in d {
-            x += i % 3 * 3 * 2;
-        }
-        let dur = before.elapsed();
-        println!("{:?} {}", dur, x);
     }
 
     impl<T> Ord for TimeStampNoCopy<T> {
